@@ -9,11 +9,11 @@
 ## Общая структура пути
 
 ```
-Уровень 0: Фундамент и настройка окружения    (1-2 недели)
-Уровень 1: Базовый C++                         (2-3 месяца)
-Уровень 2: Средний C++ / ООП / STL             (3-4 месяца)
-Уровень 3: Продвинутый C++                     (4-6 месяцев)
-Уровень 4: Экспертный / Специализация          (бесконечно)
+Уровень 0: Фундамент и настройка окружения   (1-2 недели)
+Уровень 1: Базовый C++                       (2-3 месяца)
+Уровень 2: Средний C++ / ООП / STL           (3-4 месяца)
+Уровень 3: Продвинутый C++                   (4-6 месяцев)
+Уровень 4: Экспертный / Специализация        (бесконечно)
 ```
 
 ---
@@ -24,626 +24,378 @@
 
 **Компиляторы:** GCC (Linux/Mac), MSVC (Windows), Clang (все платформы)
 
-**IDE и редакторы:**
-- **CLion** — лучший для обучения (платный, есть студенческая лицензия)
-- **VS Code** + расширение C/C++ + CMake Tools — бесплатно
-- **Visual Studio** — на Windows
-
-**Установка на Linux/Mac:**
 ```bash
-# GCC
-sudo apt install g++ build-essential   # Ubuntu/Debian
-brew install gcc                        # macOS
-
-# CMake
-sudo apt install cmake
-brew install cmake
+# Ubuntu/Debian
+sudo apt install g++ clang build-essential cmake git
+# macOS
+brew install gcc llvm cmake
+# Проверить версию
+g++ --version && clang++ --version
 ```
 
-**Первый файл:**
-```cpp
-#include <iostream>
+### ✅ Шаблон для компиляции — всегда используй эти флаги
 
-int main() {
-    std::cout << "Hello, C++!" << std::endl;
-    return 0;
-}
-```
-
-**Компиляция:**
 ```bash
-g++ -std=c++20 -Wall -Wextra -o hello hello.cpp
-./hello
-```
+# Разработка — максимум предупреждений + санитайзеры
+g++ -std=c++20 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -g -fsanitize=address,undefined -o program main.cpp
 
-> Флаги `-Wall -Wextra` показывают предупреждения — всегда используй их!
+# Продакшен — оптимизация
+g++ -std=c++20 -O2 -DNDEBUG -o program main.cpp
+```
 
 ---
 
-## Уровень 1 — Базовый C++ (C++11/14/17)
+## Уровень 1 — Базовый C++ (2–3 месяца)
 
-### 1.1 Типы данных и переменные
+### 1.1 Типы данных — best practices
 
-```cpp
-#include <iostream>
-#include <string>
-
-int main() {
-    // Целочисленные типы
-    int a = 42;
-    long long big = 9'000'000'000LL;  // апостроф — разделитель (C++14)
-    unsigned int positive = 100u;
-
-    // Вещественные
-    double pi = 3.14159265358979;
-    float small = 3.14f;
-
-    // Символы и строки
-    char c = 'A';
-    std::string s = "Hello";
-
-    // Логический
-    bool flag = true;
-
-    // auto — вывод типа (используй часто!)
-    auto x = 42;       // int
-    auto y = 3.14;     // double
-
-    // sizeof — размер типа в байтах
-    std::cout << sizeof(int) << "\n";      // обычно 4
-    std::cout << sizeof(double) << "\n";   // обычно 8
-
-    return 0;
-}
-```
-
-**Используй `int64_t`, `uint32_t` из `<cstdint>` когда нужен точный размер:**
 ```cpp
 #include <cstdint>
-int64_t score = 1'000'000'000'000LL;  // гарантированно 64 бита
-```
-
-### 1.2 Управляющие конструкции
-
-```cpp
 #include <iostream>
 
 int main() {
-    int x = 10;
+    // Используй точные типы когда размер важен
+    int32_t  health = 100;
+    uint64_t score  = 1'000'000'000ULL; // апостроф как разделитель (C++14)
 
-    // if / else if / else
-    if (x > 0) std::cout << "positive\n";
-    else if (x < 0) std::cout << "negative\n";
-    else std::cout << "zero\n";
+    // auto убирает дублирование типа
+    auto name = std::string{"Alice"};  // явно std::string, не const char*
+    auto pi   = 3.14159265358979;      // double
+    auto pif  = 3.14159f;             // float — суффикс f обязателен!
 
-    // switch
-    switch (x) {
-        case 10: std::cout << "ten\n"; break;
-        default: std::cout << "other\n";
-    }
+    // ПЛОХО — магические числа
+    if (health < 20) std::cout << "critical\n";
 
-    // for
-    for (int i = 0; i < 5; ++i) std::cout << i << " ";
+    // ХОРОШО — именованные константы
+    constexpr int32_t kCriticalHealth = 20;
+    if (health < kCriticalHealth) std::cout << "critical\n";
 
-    // while
-    int n = 5;
-    while (n > 0) std::cout << n-- << " ";
-
-    // range-based for (C++11) — используй по умолчанию!
-    std::string word = "hello";
-    for (char ch : word) std::cout << ch << " ";
+    // ВАЖНО: Инициализируй всегда! Неинициализированная переменная = UB
+    int x{};    // value-init = 0
+    int y = 0;  // явно
+    // int z;   <- мусор в памяти, UB при чтении
 
     return 0;
 }
 ```
 
-### 1.3 Функции
+### 1.2 Функции — best practices
 
 ```cpp
-#include <iostream>
 #include <string>
-#include <tuple>
+#include <string_view>
 
-// Базовая функция
-int add(int a, int b) { return a + b; }
-
-// Параметры по умолчанию
-void greet(const std::string& name, const std::string& prefix = "Hello") {
-    std::cout << prefix << ", " << name << "!\n";
+// string_view для readonly строк — не копирует
+void print_name(std::string_view name) {
+    std::cout << "Name: " << name << "\n";
 }
 
-// Перегрузка функций
-double multiply(double a, double b) { return a * b; }
-int    multiply(int a, int b)       { return a * b; }
+// [[nodiscard]] — компилятор предупредит если результат проигнорирован
+[[nodiscard]] int compute(int x) { return x * x; }
 
-// Возврат нескольких значений (C++17)
-std::tuple<int, int> divmod(int a, int b) {
+// noexcept — явное обещание не бросать исключения
+int safe_add(int a, int b) noexcept { return a + b; }
+
+// Возврат нескольких значений — через struct, не через out-параметры
+struct DivResult { int quotient; int remainder; };
+
+DivResult divmod(int a, int b) {
     return {a / b, a % b};
 }
 
-// Рекурсия
-long long factorial(int n) {
-    return (n <= 1) ? 1 : n * factorial(n - 1);
+// ПЛОХО — out-параметры через указатель, непонятно что куда
+void divmod_bad(int a, int b, int* q, int* r) {
+    *q = a / b; *r = a % b;
 }
 
 int main() {
-    greet("Alice");           // Hello, Alice!
-    greet("Bob", "Hi");      // Hi, Bob!
+    print_name("Alice");
 
-    auto [quot, rem] = divmod(17, 5);  // C++17 structured bindings
-    std::cout << quot << " " << rem << "\n";  // 3 2
+    // compute(42); <- предупреждение компилятора о [[nodiscard]]
+    auto result = compute(42);
 
-    std::cout << factorial(10) << "\n";  // 3628800
-    return 0;
+    auto [q, r] = divmod(17, 5); // C++17 structured bindings
+    std::cout << q << " rem " << r << "\n"; // 3 rem 2
 }
 ```
 
-### 1.4 Указатели и ссылки — ВАЖНЕЙШАЯ тема
+### 1.3 Указатели и ссылки — разбор опасных мест
 
 ```cpp
-#include <iostream>
+// ПЛОХО — висячая ссылка
+const std::string& bad_ref() {
+    std::string local = "hello";
+    return local; // UB! local уничтожен после return
+}
 
-int main() {
-    int x = 42;
+// ПЛОХО — забыли передать по ссылке, лишняя копия
+void modify_bad(std::vector<int> v) { // копирует весь вектор!
+    v.push_back(42); // изменяет копию, не оригинал
+}
 
-    // Ссылка — псевдоним переменной
-    int& ref = x;
-    ref = 100;
-    std::cout << x << "\n";  // 100
+// Правило выбора способа передачи:
+// | Тип              | Передавай как         |
+// | int, double, ... | по значению (T)       |
+// | только читать    | const T&              |
+// | нужно изменить   | T&                    |
+// | передать владение| unique_ptr<T>         |
 
-    // Указатель — хранит адрес
-    int* ptr = &x;
-    std::cout << *ptr << "\n";  // разыменование — 100
-    *ptr = 200;
-    std::cout << x << "\n";  // 200
+void read_vec(const std::vector<int>& v) { /* читаем */ }
+void modify_vec(std::vector<int>& v)     { v.push_back(42); }
 
-    // nullptr (C++11) — не NULL!
-    int* empty = nullptr;
-    if (empty == nullptr) std::cout << "pointer is null\n";
-
-    // const ссылка — читать без копирования (стандартный паттерн)
-    auto print = [](const std::string& s) {
-        std::cout << s << "\n";
-    };
-
-    return 0;
+// Проверяй указатель перед использованием
+void safe_use(const int* ptr) {
+    if (ptr == nullptr) return;
+    std::cout << *ptr << "\n";
 }
 ```
 
-> **Правило:** Передавай большие объекты по `const&`, маленькие типы (int, double) — по значению.
-
-### 1.5 std::vector и массивы
+### 1.4 std::vector — правильное использование
 
 ```cpp
-#include <iostream>
 #include <vector>
-#include <array>
 #include <algorithm>
+#include <numeric>
 
 int main() {
-    // std::array — фиксированный размер (C++11)
-    std::array<int, 5> arr = {1, 2, 3, 4, 5};
+    // reserve() если знаешь размер заранее — избегает realloc
+    std::vector<int> v;
+    v.reserve(1000);
+    for (int i = 0; i < 1000; ++i) v.push_back(i);
 
-    // std::vector — динамический массив, используй по умолчанию
-    std::vector<int> v = {3, 1, 4, 1, 5, 9, 2, 6};
+    // emplace_back вместо push_back для объектов — конструирует на месте
+    std::vector<std::pair<int,int>> pairs;
+    pairs.emplace_back(1, 2);
 
-    v.push_back(7);     // добавить в конец
-    v.emplace_back(8);  // добавить на месте (эффективнее)
-    v.pop_back();       // удалить последний
-    v.reserve(100);     // зарезервировать память заранее
+    // STL алгоритмы вместо ручных циклов
+    int sum  = std::accumulate(v.begin(), v.end(), 0);
+    auto it  = std::find(v.begin(), v.end(), 42);
+    bool has = (it != v.end());
+    int  cnt = std::count_if(v.begin(), v.end(), [](int x){ return x%2==0; });
 
-    // Доступ
-    std::cout << v[0] << "\n";    // без проверки границ
-    std::cout << v.at(0) << "\n"; // с проверкой, бросает исключение
+    std::sort(v.begin(), v.end(), std::greater<int>{}); // убывание
 
-    // Сортировка
-    std::sort(v.begin(), v.end());
-    std::sort(v.begin(), v.end(), std::greater<int>{});
+    // erase-remove idiom — удалить все нечётные
+    v.erase(std::remove_if(v.begin(), v.end(), [](int x){ return x%2!=0; }), v.end());
 
-    // Итерация
-    for (const auto& elem : v) std::cout << elem << " ";
-
-    // 2D вектор
-    std::vector<std::vector<int>> matrix(3, std::vector<int>(3, 0));
-    matrix[1][1] = 5;
-
-    return 0;
-}
-```
-
-### 1.6 Строки
-
-```cpp
-#include <iostream>
-#include <string>
-#include <sstream>
-
-int main() {
-    std::string s = "Hello, World!";
-
-    std::cout << s.length() << "\n";       // 13
-    std::cout << s.substr(0, 5) << "\n";   // Hello
-    std::cout << s.find("World") << "\n";  // 7
-
-    s.replace(7, 5, "C++");  // Hello, C++!
-    s += " Great!";           // конкатенация
-
-    // Конвертация
-    int n = std::stoi("42");
-    std::string ns = std::to_string(42);
-
-    // std::string_view (C++17) — легковесный просмотр, не копирует
-    std::string_view sv = s;
-    std::cout << sv.substr(0, 5) << "\n";  // не выделяет память!
-
-    return 0;
+    // C++20 — то же самое проще:
+    std::erase_if(v, [](int x) { return x % 2 != 0; });
 }
 ```
 
 ### Где учить уровень 1
 
 | Ресурс | Тип | Ссылка |
-|--------|-----|--------|
+|---|---|---|
 | learncpp.com | Бесплатный курс | https://www.learncpp.com |
 | C++ Primer (Lippman) | Книга | Классика для новичков |
 | The Cherno | YouTube | Очень доходчиво |
 | cppreference.com | Справочник | Открывай всегда |
 | Codeforces Div.4/3 | Практика | Задачи по алгоритмам |
 
-
 ---
 
-## Уровень 2 — Средний C++
+## Уровень 2 — Средний C++ (3–4 месяца)
 
-### 2.1 ООП — Классы и объекты
+### 2.1 ООП — как правильно проектировать классы
 
 ```cpp
-#include <iostream>
 #include <string>
+#include <stdexcept>
 
-class Animal {
-private:
-    std::string name_;
-    int age_;
-
-protected:
-    double weight_;
-
+class BankAccount {
 public:
-    // Конструктор с initializer list
-    Animal(std::string name, int age, double weight)
-        : name_(std::move(name))
-        , age_(age)
-        , weight_(weight)
+    // explicit — запрет неявного преобразования
+    explicit BankAccount(std::string owner, double initial_balance = 0.0)
+        : owner_(std::move(owner))   // move, не копирование
+        , balance_(initial_balance)
     {
-        std::cout << "Animal created: " << name_ << "\n";
+        if (initial_balance < 0)
+            throw std::invalid_argument("Balance cannot be negative");
     }
 
-    virtual ~Animal() {
-        std::cout << "Animal destroyed: " << name_ << "\n";
-    }
+    // Виртуальный деструктор — обязателен для полиморфных классов
+    virtual ~BankAccount() = default;
 
     // Геттеры — const метод не меняет объект
-    const std::string& name() const { return name_; }
-    int age() const { return age_; }
+    const std::string& owner()   const { return owner_; }
+    double             balance() const { return balance_; }
 
-    // Виртуальный метод — для полиморфизма
-    virtual std::string sound() const { return "..."; }
-
-    // Перегрузка оператора
-    bool operator<(const Animal& other) const {
-        return age_ < other.age_;
+    virtual void deposit(double amount) {
+        if (amount <= 0) throw std::invalid_argument("Amount must be positive");
+        balance_ += amount;
     }
 
-    // Статический метод
-    static std::string kingdom() { return "Animalia"; }
+    virtual bool withdraw(double amount) {
+        if (amount <= 0) throw std::invalid_argument("Amount must be positive");
+        if (amount > balance_) return false;
+        balance_ -= amount;
+        return true;
+    }
+
+    // Перегрузка << через friend
+    friend std::ostream& operator<<(std::ostream& os, const BankAccount& acc) {
+        return os << acc.owner_ << ": $" << acc.balance_;
+    }
+
+private:
+    std::string owner_;
+    double      balance_;
 };
 
-class Dog : public Animal {
-    std::string breed_;
+// override — явно, компилятор проверит что мы действительно переопределяем
+class SavingsAccount : public BankAccount {
 public:
-    Dog(std::string name, int age, double weight, std::string breed)
-        : Animal(std::move(name), age, weight)
-        , breed_(std::move(breed))
-    {}
+    SavingsAccount(std::string owner, double balance, double rate)
+        : BankAccount(std::move(owner), balance), interest_rate_(rate) {}
 
-    // override — явно указываем переопределение
-    std::string sound() const override { return "Woof!"; }
-    const std::string& breed() const { return breed_; }
-};
-
-int main() {
-    Dog d("Rex", 3, 25.0, "German Shepherd");
-
-    // Полиморфизм через указатель на базовый класс
-    Animal* ptr = &d;
-    std::cout << ptr->sound() << "\n";  // Woof!
-    std::cout << Animal::kingdom() << "\n";
-    return 0;
-}
-```
-
-### 2.2 Правило пяти (Rule of Five)
-
-Если управляешь ресурсом вручную — определи все пять:
-
-```cpp
-class Buffer {
-    char* data_;
-    size_t size_;
-public:
-    explicit Buffer(size_t size)
-        : data_(new char[size]), size_(size) {}
-
-    ~Buffer() { delete[] data_; }                        // 1. Деструктор
-
-    Buffer(const Buffer& o)                              // 2. Конструктор копирования
-        : data_(new char[o.size_]), size_(o.size_) {
-        std::memcpy(data_, o.data_, size_);
+    void deposit(double amount) override {
+        BankAccount::deposit(amount);
+        BankAccount::deposit(amount * interest_rate_); // + проценты
     }
 
-    Buffer& operator=(const Buffer& o) {                 // 3. Копирование =
-        if (this != &o) {
-            delete[] data_;
-            data_ = new char[o.size_];
-            size_ = o.size_;
-            std::memcpy(data_, o.data_, size_);
-        }
-        return *this;
-    }
-
-    Buffer(Buffer&& o) noexcept                          // 4. Конструктор перемещения
-        : data_(o.data_), size_(o.size_) {
-        o.data_ = nullptr; o.size_ = 0;
-    }
-
-    Buffer& operator=(Buffer&& o) noexcept {             // 5. Перемещение =
-        if (this != &o) {
-            delete[] data_;
-            data_ = o.data_; size_ = o.size_;
-            o.data_ = nullptr; o.size_ = 0;
-        }
-        return *this;
-    }
+private:
+    double interest_rate_;
 };
 ```
 
-> **На практике:** Используй `std::vector`, `std::string`, `std::unique_ptr` — они реализуют это за тебя.
-
-### 2.3 Умные указатели — забудь про raw new/delete
+### 2.2 Умные указатели — паттерны использования
 
 ```cpp
 #include <memory>
+#include <vector>
 
-// unique_ptr — единственный владелец
-auto p1 = std::make_unique<MyClass>(args...);
-// p1 автоматически удаляется при выходе из scope
+// unique_ptr — единственный владелец (90% случаев)
+auto ptr = std::make_unique<MyClass>(args...);
+// ptr автоматически удаляется при выходе из scope
 // нельзя скопировать, только переместить:
-auto p2 = std::move(p1);  // p1 = nullptr
+auto ptr2 = std::move(ptr); // ptr = nullptr
 
-// shared_ptr — подсчёт ссылок
+// shared_ptr — подсчёт ссылок (только при реальном совместном владении)
 auto sp1 = std::make_shared<MyClass>(args...);
 {
-    auto sp2 = sp1;  // счётчик = 2
-}  // sp2 уничтожен, счётчик = 1
-// sp1 уничтожен, счётчик = 0 — объект удалён
+    auto sp2 = sp1; // счётчик = 2
+} // sp2 уничтожен, счётчик = 1
 
-// weak_ptr — наблюдатель без владения
-std::weak_ptr<MyClass> wp = sp1;
-if (auto locked = wp.lock()) {   // получаем shared_ptr если объект жив
-    locked->doSomething();
+// weak_ptr разрывает циклические зависимости
+struct Employee;
+struct Department {
+    std::vector<std::weak_ptr<Employee>> members; // не владеем!
+};
+struct Employee {
+    std::shared_ptr<Department> dept; // владеем
+};
+
+// Принимай unique_ptr по значению = берёшь владение
+void consume(std::unique_ptr<Node> node) { /* владеем */ }
+
+// Принимай raw pointer = только используем, не владеем
+void read_node(const Node* node) {
+    if (node) std::cout << node->value << "\n";
 }
 ```
 
-> **Правило:** 90% случаев — `unique_ptr`. `shared_ptr` только при реальном совместном владении.
-
-### 2.4 Шаблоны (Templates)
+### 2.3 Шаблоны (Templates)
 
 ```cpp
-#include <iostream>
-#include <vector>
-#include <concepts>  // C++20
-
-// Шаблонная функция
+// Простой шаблон функции
 template<typename T>
-T max_val(T a, T b) { return (a > b) ? a : b; }
+T clamp(T val, T lo, T hi) {
+    return val < lo ? lo : (val > hi ? hi : val);
+}
 
-// Шаблонный класс
+// C++20 концепты — читаемее SFINAE
 template<typename T>
-class Stack {
-    std::vector<T> data_;
+concept Numeric = std::integral<T> || std::floating_point<T>;
+
+template<Numeric T>
+T square(T x) { return x * x; }
+
+// CRTP — статический полиморфизм (быстрее виртуальных функций)
+template<typename Derived>
+class Printable {
 public:
-    void push(T val) { data_.push_back(std::move(val)); }
-    void pop()       { data_.pop_back(); }
-    const T& top() const { return data_.back(); }
-    bool empty() const   { return data_.empty(); }
-    size_t size() const  { return data_.size(); }
+    void print() const {
+        static_cast<const Derived*>(this)->print_impl();
+    }
 };
 
-// Variadic templates (C++11) + fold expression (C++17)
+class Circle : public Printable<Circle> {
+public:
+    explicit Circle(double r) : radius(r) {}
+    void print_impl() const {
+        std::cout << "Circle(r=" << radius << ")\n";
+    }
+private:
+    double radius;
+};
+
+// Variadic templates + fold expression (C++17)
 template<typename... Args>
 void print_all(Args&&... args) {
     (std::cout << ... << args) << "\n";
 }
-
-// Концепты (C++20) — ограничения на шаблонные параметры
-template<typename T>
-requires std::integral<T>
-T gcd(T a, T b) {
-    while (b) { a %= b; std::swap(a, b); }
-    return a;
-}
-
-int main() {
-    std::cout << max_val(3, 7) << "\n";        // 7
-    std::cout << max_val(3.14, 2.72) << "\n";  // 3.14
-
-    Stack<std::string> ss;
-    ss.push("hello"); ss.push("world");
-    std::cout << ss.top() << "\n";  // world
-
-    print_all("a=", 42, " b=", 3.14);  // a=42 b=3.14
-    std::cout << gcd(48, 18) << "\n";  // 6
-    return 0;
-}
 ```
 
-### 2.5 STL контейнеры и алгоритмы
+### 2.4 Обработка ошибок — правильная стратегия
 
 ```cpp
-#include <map>
-#include <unordered_map>
-#include <set>
-#include <queue>
-#include <algorithm>
-#include <numeric>
-#include <ranges>  // C++20
+#include <optional>
+#include <variant>
 
-int main() {
-    // map — отсортированный, O(log n)
-    std::map<std::string, int> scores;
-    scores["Alice"] = 95; scores["Bob"] = 87;
-    for (const auto& [name, score] : scores)  // structured binding
-        std::cout << name << ": " << score << "\n";
-
-    // unordered_map — хэш-таблица, O(1) средне
-    std::unordered_map<std::string, int> fast;
-    fast.reserve(100);
-    fast["key"] = 42;
-
-    // priority_queue — куча
-    std::priority_queue<int> maxHeap;
-    std::priority_queue<int, std::vector<int>, std::greater<int>> minHeap;
-    maxHeap.push(3); maxHeap.push(1); maxHeap.push(4);
-    std::cout << maxHeap.top() << "\n";  // 4
-
-    // Алгоритмы STL
-    std::vector<int> v = {5, 2, 8, 1, 9, 3, 7, 4, 6};
-
-    // Поиск
-    auto it = std::find(v.begin(), v.end(), 8);
-
-    // Подсчёт
-    int cnt = std::count_if(v.begin(), v.end(), [](int x) { return x > 5; });
-
-    // Аккумуляция
-    int sum = std::accumulate(v.begin(), v.end(), 0);  // 45
-
-    // Ranges (C++20) — ленивые, composable
-    auto result = v
-        | std::views::filter([](int x) { return x % 2 == 0; })
-        | std::views::transform([](int x) { return x * x; });
-
-    for (int x : result) std::cout << x << " ";  // 4 64 16 36
-    return 0;
-}
-```
-
-### 2.6 Лямбды
-
-```cpp
-#include <functional>
-
-int main() {
-    // Базовая лямбда
-    auto greet = [](const std::string& name) {
-        std::cout << "Hello, " << name << "!\n";
-    };
-
-    // Захват по значению
-    int mult = 3;
-    auto times = [mult](int x) { return x * mult; };
-
-    // Захват по ссылке
-    auto times_ref = [&mult](int x) { return x * mult; };
-
-    // Обобщённая лямбда (C++14)
-    auto add = [](auto a, auto b) { return a + b; };
-    std::cout << add(1, 2) << " " << add(1.5, 2.5) << "\n";  // 3 4
-
-    // std::function — для хранения любого callable
-    std::function<int(int, int)> op = [](int a, int b) { return a + b; };
-    op = [](int a, int b) { return a * b; };
-
-    // Сортировка по нескольким критериям
-    struct Person { std::string name; int age; };
-    std::vector<Person> people = {{"Charlie", 25}, {"Alice", 30}, {"Bob", 25}};
-    std::sort(people.begin(), people.end(), [](const Person& a, const Person& b) {
-        return a.age != b.age ? a.age < b.age : a.name < b.name;
-    });
-    return 0;
-}
-```
-
-### 2.7 Обработка ошибок
-
-```cpp
-#include <stdexcept>
-#include <optional>  // C++17
-
-// Исключения
-double safe_divide(double a, double b) {
-    if (b == 0.0) throw std::invalid_argument("Division by zero");
-    return a / b;
+// std::optional — функция может не иметь результата
+std::optional<double> safe_sqrt(double x) {
+    if (x < 0) return std::nullopt;
+    return std::sqrt(x);
 }
 
-void exception_demo() {
+// value_or — дефолт если пусто
+double r = safe_sqrt(-1.0).value_or(0.0);
+
+// if + разыменование
+if (auto result = safe_sqrt(4.0)) {
+    std::cout << *result << "\n"; // 2.0
+}
+
+// std::variant — тип-or-ошибка без исключений (C++17)
+using ParseResult = std::variant<int, std::string>;
+
+ParseResult parse_positive(const std::string& s) {
     try {
-        std::cout << safe_divide(10, 2) << "\n";
-        std::cout << safe_divide(10, 0) << "\n";
-    } catch (const std::invalid_argument& e) {
-        std::cerr << "Error: " << e.what() << "\n";
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << "\n";
+        int n = std::stoi(s);
+        if (n < 0) return std::string{"Expected positive, got " + s};
+        return n;
+    } catch (...) {
+        return std::string{"Not a number: " + s};
     }
 }
 
-// std::optional (C++17) — функция может не вернуть значение
-std::optional<int> parse_int(const std::string& s) {
-    try { return std::stoi(s); }
-    catch (...) { return std::nullopt; }
-}
-
-void optional_demo() {
-    auto val = parse_int("42").value_or(0);
-    std::cout << val << "\n";  // 42
-
-    if (auto result = parse_int("abc")) {
-        std::cout << *result << "\n";
-    } else {
-        std::cout << "parse failed\n";
-    }
-}
+// Иерархия своих исключений
+class AppError     : public std::runtime_error { using std::runtime_error::runtime_error; };
+class NetworkError : public AppError           { using AppError::AppError; };
+class TimeoutError : public NetworkError       { using NetworkError::NetworkError; };
 ```
 
 ### Где учить уровень 2
 
 | Ресурс | Тип |
-|--------|-----|
+|---|---|
 | Effective Modern C++ (Scott Meyers) | Книга — обязательно |
 | C++ Templates: The Complete Guide | Книга — шаблоны |
 | LeetCode Medium | Практика |
 | Codeforces Div.2 A-C | Практика |
 | Back to Basics на CppCon | YouTube |
 
-
 ---
 
-## Уровень 3 — Продвинутый C++
+## Уровень 3 — Продвинутый C++ (4–6 месяцев)
 
 ### 3.1 Move семантика и rvalue references
 
 ```cpp
-#include <iostream>
-#include <string>
-#include <vector>
-
-void process(const std::string& s) {   // принимает lvalue и rvalue
-    std::cout << "copy: " << s << "\n";
-}
-void process(std::string&& s) {        // только rvalue
-    std::cout << "move: " << s << "\n";
-    std::string local = std::move(s);  // "крадём" содержимое
+void process(const std::string& s) { /* lvalue */ }
+void process(std::string&& s) {      /* rvalue */
+    std::string local = std::move(s); // "крадём" содержимое
 }
 
 // Perfect forwarding — сохраняет категорию значения
@@ -652,242 +404,316 @@ void wrapper(T&& arg) {
     process(std::forward<T>(arg));
 }
 
-int main() {
-    std::string s = "hello";
-    process(s);             // copy (lvalue)
-    process("world");       // move (rvalue — временный)
-    process(std::move(s));  // move (явное перемещение, s становится пустым)
+// Когда использовать std::move:
+// 1. Передаём объект в функцию и он нам больше не нужен
+// 2. В конструкторе/операторе перемещения
+// 3. vector использует move при resize — перемещение не копирование
 
-    // vector избегает копирований благодаря move
-    std::vector<std::string> vec;
-    std::string big(1000000, 'x');
-    vec.push_back(std::move(big));  // O(1), не O(n)!
-    return 0;
+std::string s = "hello";
+auto s2 = std::move(s); // s теперь пусто — не используй после move!
+
+// ПЛОХО — move в return мешает NRVO
+std::string make() {
+    std::string r = "result";
+    return r;        // ХОРОШО: NRVO сработает
+    // return std::move(r); // ПЛОХО: мешает NRVO
 }
 ```
 
-### 3.2 Многопоточность
+### 3.2 Многопоточность — правильные паттерны
 
 ```cpp
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include <atomic>
 #include <future>
-#include <vector>
 
-// Mutex для защиты общих данных
-std::mutex mtx;
-int shared_counter = 0;
-
-void increment(int times) {
-    for (int i = 0; i < times; ++i) {
-        std::lock_guard<std::mutex> lock(mtx);  // RAII
-        ++shared_counter;
+// Thread-safe очередь — классический паттерн producer/consumer
+template<typename T>
+class ThreadSafeQueue {
+public:
+    void push(T value) {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            queue_.push(std::move(value));
+        }
+        cv_.notify_one(); // уведомить после unlock
     }
-}
 
-// atomic для простых операций
-std::atomic<int> atomic_counter{0};
-void atomic_inc(int times) {
-    for (int i = 0; i < times; ++i) ++atomic_counter;
-}
+    T pop() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        cv_.wait(lock, [this] { return !queue_.empty(); }); // ждём с предикатом
+        T value = std::move(queue_.front());
+        queue_.pop();
+        return value;
+    }
 
-// future/async — результат из другого потока
-int heavy_computation(int n) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    return n * n;
-}
+    bool try_pop(T& value) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (queue_.empty()) return false;
+        value = std::move(queue_.front());
+        queue_.pop();
+        return true;
+    }
 
-int main() {
-    // Создание потоков
-    std::vector<std::thread> threads;
-    for (int i = 0; i < 4; ++i)
-        threads.emplace_back(increment, 1000);
-    for (auto& t : threads) t.join();
-    std::cout << shared_counter << "\n";  // 4000
+private:
+    mutable std::mutex      mutex_;
+    std::condition_variable cv_;
+    std::queue<T>           queue_;
+};
 
-    // async — параллельное выполнение
-    auto future = std::async(std::launch::async, heavy_computation, 42);
-    std::cout << "Doing other work...\n";
-    int result = future.get();  // блокирует до готовности
-    std::cout << "Result: " << result << "\n";  // 1764
-    return 0;
-}
+// atomic — для счётчиков без мьютекса
+class Statistics {
+public:
+    void record_request() noexcept { ++total_requests_; }
+    void record_error()   noexcept { ++total_errors_; }
+    double error_rate() const noexcept {
+        auto total = total_requests_.load();
+        if (total == 0) return 0.0;
+        return static_cast<double>(total_errors_.load()) / total;
+    }
+private:
+    std::atomic<uint64_t> total_requests_{0};
+    std::atomic<uint64_t> total_errors_{0};
+};
+
+// async — параллельное выполнение
+auto future = std::async(std::launch::async, []{ return heavy_computation(); });
+std::cout << "Doing other work...\n";
+int result = future.get(); // блокирует до готовности
 ```
 
-### 3.3 RAII и паттерны проектирования
+### 3.3 RAII — продвинутые паттерны
 
 ```cpp
-// RAII — весь C++ строится на этом принципе
-class FileHandle {
-    FILE* file_;
+// ScopeGuard — выполнить действие при выходе из scope
+class ScopeGuard {
 public:
-    explicit FileHandle(const char* path, const char* mode)
-        : file_(fopen(path, mode)) {
-        if (!file_) throw std::runtime_error("Cannot open file");
-    }
-    ~FileHandle() { if (file_) fclose(file_); }
-    // Некопируемый:
-    FileHandle(const FileHandle&) = delete;
-    FileHandle& operator=(const FileHandle&) = delete;
-    FILE* get() { return file_; }
+    explicit ScopeGuard(std::function<void()> f) : fn_(std::move(f)) {}
+    ~ScopeGuard() { if (active_) fn_(); }
+    void dismiss() { active_ = false; }
+    ScopeGuard(const ScopeGuard&) = delete;
+    ScopeGuard& operator=(const ScopeGuard&) = delete;
+private:
+    std::function<void()> fn_;
+    bool active_ = true;
 };
 
-// Singleton (thread-safe с C++11)
-class Logger {
-    Logger() = default;
-public:
-    static Logger& instance() {
-        static Logger inst;  // гарантированно thread-safe
-        return inst;
-    }
-    void log(const std::string& msg) {
-        std::cout << "[LOG] " << msg << "\n";
-    }
-    Logger(const Logger&) = delete;
-    Logger& operator=(const Logger&) = delete;
-};
+void database_transaction(Database& db) {
+    db.begin_transaction();
+    ScopeGuard rollback_guard([&db]{ db.rollback(); }); // выполнится при любом выходе
 
-// Factory
-std::unique_ptr<Shape> make_shape(const std::string& type, double a, double b = 0) {
-    if (type == "circle")    return std::make_unique<Circle>(a);
-    if (type == "rectangle") return std::make_unique<Rectangle>(a, b);
-    throw std::invalid_argument("Unknown: " + type);
+    db.execute("UPDATE users SET active=1 WHERE id=42");
+    db.commit();
+    rollback_guard.dismiss(); // успех — отменяем rollback
 }
+
+// PImpl — скрывает детали реализации, ускоряет компиляцию
+class Engine {
+public:
+    explicit Engine(int cylinders);
+    ~Engine(); // определён в .cpp где Impl известен
+    Engine(Engine&&) noexcept;
+    Engine& operator=(Engine&&) noexcept;
+    void start();
+    int  rpm() const;
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_; // детали только в .cpp
+};
 ```
 
-### 3.4 Метапрограммирование и type traits
+### 3.4 Метапрограммирование — практичные случаи
 
 ```cpp
 #include <type_traits>
-#include <iostream>
+#include <concepts>
+#include <array>
 
-// SFINAE (C++11) — Substitution Failure Is Not An Error
-template<typename T>
-typename std::enable_if<std::is_integral<T>::value, T>::type
-only_integral(T val) { return val * 2; }
+// constexpr — вычисления при компиляции
+constexpr std::array<int, 10> make_squares() {
+    std::array<int, 10> arr{};
+    for (int i = 0; i < 10; ++i) arr[i] = i * i;
+    return arr;
+}
+constexpr auto SQUARES = make_squares(); // вычисляется при компиляции!
 
-// if constexpr (C++17) — ветвление на этапе компиляции
+// if constexpr — ветвление на уровне типов (C++17)
 template<typename T>
-void type_info(T val) {
-    if constexpr (std::is_integral_v<T>) {
-        std::cout << "integral: " << val << "\n";
+std::string to_string_smart(T val) {
+    if constexpr (std::is_same_v<T, bool>) {
+        return val ? "true" : "false";
     } else if constexpr (std::is_floating_point_v<T>) {
-        std::cout << "float: " << val << "\n";
+        return std::to_string(val);
+    } else if constexpr (std::is_integral_v<T>) {
+        return std::to_string(val);
     } else {
-        std::cout << "other type\n";
+        return std::string(val);
     }
 }
 
-// constexpr — вычисления на этапе компиляции
-constexpr int fibonacci(int n) {
-    if (n <= 1) return n;
-    return fibonacci(n-1) + fibonacci(n-2);
-}
+// Концепты (C++20) — описывают требования к типу
+template<typename T>
+concept Sortable = requires(T container) {
+    container.begin();
+    container.end();
+    { container.size() } -> std::convertible_to<size_t>;
+};
 
-int main() {
-    type_info(42);     // integral: 42
-    type_info(3.14);   // float: 3.14
-    type_info("hi");   // other type
-
-    constexpr int fib10 = fibonacci(10);  // вычисляется при компиляции!
-    std::cout << fib10 << "\n";  // 55
-    return 0;
+template<Sortable Container>
+void sort_and_print(Container& c) {
+    std::sort(c.begin(), c.end());
+    for (const auto& elem : c) std::cout << elem << " ";
+    std::cout << "\n";
 }
 ```
 
-### 3.5 CMake — система сборки
+### 3.5 CMake — правильная структура проекта
+
+```
+MyProject/
+├── CMakeLists.txt
+├── src/
+│   ├── CMakeLists.txt
+│   ├── main.cpp
+│   └── engine/
+│       ├── engine.hpp
+│       └── engine.cpp
+├── tests/
+│   └── test_engine.cpp
+└── third_party/
+    └── googletest/
+```
 
 ```cmake
-# CMakeLists.txt
 cmake_minimum_required(VERSION 3.20)
-project(MyProject VERSION 1.0.0)
+project(MyProject VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Исполняемый файл
-add_executable(main
-    src/main.cpp
-    src/utils.cpp
+option(BUILD_TESTS  "Build tests"             ON)
+option(ENABLE_ASAN  "Enable AddressSanitizer" OFF)
+
+add_library(project_warnings INTERFACE)
+target_compile_options(project_warnings INTERFACE
+    -Wall -Wextra -Wpedantic -Wshadow -Wconversion
+    $<$<CONFIG:Debug>:-g>
+    $<$<CONFIG:Release>:-O2 -DNDEBUG>
 )
 
-# Библиотека
-add_library(mylib STATIC
-    src/mylib.cpp
-)
-target_include_directories(mylib PUBLIC include/)
+if(ENABLE_ASAN)
+    target_compile_options(project_warnings INTERFACE -fsanitize=address,undefined)
+    target_link_options(project_warnings    INTERFACE -fsanitize=address,undefined)
+endif()
 
-# Линковка
-target_link_libraries(main PRIVATE mylib)
-
-# Включить предупреждения
-target_compile_options(main PRIVATE -Wall -Wextra -Wpedantic)
-```
-
-```bash
-# Сборка
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . -j$(nproc)
-```
-
-### 3.6 Тестирование с Google Test
-
-```cpp
-// tests/test_math.cpp
-#include <gtest/gtest.h>
-#include "mylib.hpp"
-
-TEST(MathTest, AddPositive) {
-    EXPECT_EQ(add(2, 3), 5);
-    EXPECT_EQ(add(0, 0), 0);
-}
-
-TEST(MathTest, DivisionByZero) {
-    EXPECT_THROW(safe_divide(1, 0), std::invalid_argument);
-}
-
-TEST(VectorTest, PushBack) {
-    std::vector<int> v;
-    v.push_back(42);
-    ASSERT_EQ(v.size(), 1);
-    EXPECT_EQ(v[0], 42);
-}
+add_subdirectory(src)
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 ```
 
 ### Где учить уровень 3
 
 | Ресурс | Тип |
-|--------|-----|
+|---|---|
 | CppCon на YouTube | Конференция — отличные доклады |
 | C++ Weekly (Jason Turner) | YouTube — практические трюки |
 | Concurrency in Action (Williams) | Книга — многопоточность |
 | LeetCode Hard, Codeforces Div.1 | Практика |
 | open-source проекты на GitHub | Практика |
 
-
 ---
 
-## Уровень 4 — Экспертный C++ / Специализация
+## Уровень 4 — Экспертный / Специализация
 
 ### 4.1 Выбор специализации
 
 | Направление | Ключевые темы | Где применяется |
-|-------------|---------------|-----------------|
-| **Gamedev** | ECS, рендеринг, физика, SIMD | Unreal Engine, Unity C++ |
-| **Системное ПО** | OS internals, драйверы, ядро | Linux, embedded |
-| **HPC / Финансы** | SIMD, memory layout, lock-free | Алготрейдинг, simulations |
-| **Компиляторы** | LLVM, AST, IR, codegen | Clang, GCC |
-| **Embedded** | RTOS, bare-metal, HAL | Arduino, STM32 |
-| **Сети** | async I/O, epoll, IOCP | Серверы, брокеры |
+|---|---|---|
+| Gamedev | ECS, рендеринг, физика, SIMD | Unreal Engine, Unity C++ |
+| Системное ПО | OS internals, драйверы, ядро | Linux, embedded |
+| HPC / Финансы | SIMD, memory layout, lock-free | Алготрейдинг, simulations |
+| Компиляторы | LLVM, AST, IR, codegen | Clang, GCC |
+| Embedded | RTOS, bare-metal, HAL | Arduino, STM32 |
+| Сети | async I/O, epoll, IOCP | Серверы, брокеры |
 
-### 4.2 Продвинутые темы C++20/23
+### 4.2 Cache-friendly код (SoA vs AoS)
 
 ```cpp
-// Корутины (C++20)
+// ПЛОХО: Array of Structures — при обходе позиций тащим лишнее
+struct ParticleBad {
+    float x, y, z;
+    float vx, vy, vz;
+    float mass, lifetime;
+    char name[32]; // мусор в кэше при обработке позиций
+};
+
+// ХОРОШО: Structure of Arrays — линейный доступ к каждому полю
+struct Particles {
+    std::vector<float> x, y, z;
+    std::vector<float> vx, vy, vz;
+    std::vector<float> mass;
+    std::vector<float> lifetime;
+};
+
+// Обновление позиций — идёт по 3 непрерывным массивам, cache friendly!
+void update_positions(Particles& p, float dt) {
+    const size_t n = p.x.size();
+    for (size_t i = 0; i < n; ++i) {
+        p.x[i] += p.vx[i] * dt;
+        p.y[i] += p.vy[i] * dt;
+        p.z[i] += p.vz[i] * dt;
+    }
+}
+```
+
+### 4.3 std::format и Ranges (C++20)
+
+```cpp
+#include <format>
+#include <ranges>
+
+// std::format — безопасная замена printf
+std::string s = std::format("Hello, {}! Score: {:.2f}", "Alice", 98.5);
+
+// Для своих типов — специализируй formatter
+struct Point { double x, y; };
+
+template<>
+struct std::formatter<Point> {
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+    auto format(const Point& p, std::format_context& ctx) const {
+        return std::format_to(ctx.out(), "({:.2f}, {:.2f})", p.x, p.y);
+    }
+};
+
+Point pt{1.5, 2.7};
+std::cout << std::format("Point: {}\n", pt); // Point: (1.50, 2.70)
+
+// Ranges pipeline — ленивые цепочки без промежуточных векторов
+std::vector<int> nums = {1,2,3,4,5,6,7,8,9,10};
+
+auto result = nums
+    | std::views::filter([](int x) { return x % 2 == 0; })
+    | std::views::transform([](int x) { return x * x; })
+    | std::views::take(3);
+
+for (int x : result) std::cout << x << " "; // 4 16 36
+
+// views::iota — диапазон без вектора
+for (int i : std::views::iota(1, 11)) std::cout << i << " "; // 1..10
+```
+
+### 4.4 Корутины (C++20)
+
+```cpp
 #include <coroutine>
-#include <generator>  // C++23
+#include <generator> // C++23
 
 std::generator<int> fibonacci() {
     int a = 0, b = 1;
@@ -900,72 +726,48 @@ std::generator<int> fibonacci() {
 
 void coro_demo() {
     for (int fib : fibonacci() | std::views::take(10)) {
-        std::cout << fib << " ";
+        std::cout << fib << " "; // 0 1 1 2 3 5 8 13 21 34
     }
-    // 0 1 1 2 3 5 8 13 21 34
 }
-
-// Модули (C++20) — замена заголовочным файлам
-// mymodule.ixx
-export module mymodule;
-export namespace math {
-    int add(int a, int b) { return a + b; }
-}
-
-// main.cpp
-import mymodule;
-int main() {
-    std::cout << math::add(3, 4) << "\n";
-}
-
-// std::span (C++20) — невладеющий вид на массив
-#include <span>
-void process(std::span<int> data) {
-    for (int& x : data) x *= 2;
-}
-int arr[] = {1, 2, 3, 4, 5};
-process(arr);  // работает с C-массивом
-std::vector<int> v = {1, 2, 3};
-process(v);    // и с вектором
 ```
 
-### 4.3 Оптимизации и производительность
+---
+
+## Типичные ошибки новичков
 
 ```cpp
-// Cache-friendly data layout
-// Плохо: Array of Structures (AoS)
-struct BadParticle {
-    float x, y, z;   // позиция
-    float vx, vy, vz; // скорость
-    float mass;
-    float lifetime;
-};
-std::vector<BadParticle> particles;  // при обработке позиций — пропуски кэша
+// ОШИБКА 1: Забытый virtual деструктор
+class Base { };
+class Derived : public Base { ~Derived() { /* cleanup */ } };
+Base* ptr = new Derived();
+delete ptr; // UB! деструктор Derived не вызовется
+// ИСПРАВЛЕНИЕ:
+class Base { public: virtual ~Base() = default; };
 
-// Хорошо: Structure of Arrays (SoA)
-struct GoodParticles {
-    std::vector<float> x, y, z;
-    std::vector<float> vx, vy, vz;
-    std::vector<float> mass;
-    std::vector<float> lifetime;
-};  // при обработке позиций — линейный доступ, кэш доволен
+// ОШИБКА 2: Срезка объекта (object slicing)
+void process(Base obj) { obj.do_something(); } // копирует только Base-часть!
+// ИСПРАВЛЕНИЕ:
+void process(const Base& obj) { obj.do_something(); }
 
-// Избегай ветвлений в горячем коде
-// Плохо:
-for (auto& p : particles) {
-    if (p.lifetime > 0) p.x += p.vx;  // branch prediction miss
+// ОШИБКА 3: Итератор инвалидирован при push_back
+std::vector<int> v = {1,2,3,4,5};
+for (auto it = v.begin(); it != v.end(); ++it) {
+    if (*it == 3) v.push_back(99); // UB! реаллокация инвалидирует итераторы
 }
-// Лучше — разделить живых и мёртвых заранее
+// ИСПРАВЛЕНИЕ: собери что добавить после цикла
 
-// SIMD (через intrinsics или библиотеки)
-#include <immintrin.h>
-void add_arrays_avx(float* a, float* b, float* result, int n) {
-    for (int i = 0; i < n; i += 8) {
-        __m256 va = _mm256_load_ps(a + i);
-        __m256 vb = _mm256_load_ps(b + i);
-        _mm256_store_ps(result + i, _mm256_add_ps(va, vb));
-    }
-}
+// ОШИБКА 4: Signed/unsigned сравнение
+for (int i = 0; i < v.size(); ++i) // warning! v.size() — unsigned
+// ИСПРАВЛЕНИЕ:
+for (size_t i = 0; i < v.size(); ++i)
+// или просто range-based for:
+for (const auto& x : v) { /* ... */ }
+
+// ОШИБКА 5: Не инициализированные переменные
+int x; // мусорное значение! UB при чтении
+// ИСПРАВЛЕНИЕ:
+int x{};   // value-initialization = 0
+int y = 0; // явно
 ```
 
 ---
@@ -1013,20 +815,10 @@ cppcheck --enable=all src/
 clang-format -i -style=Google src/
 ```
 
----
-
-## Дорожная карта по времени
-
-```
-Месяц 1-2:  Синтаксис, типы, управляющие конструкции, функции
-Месяц 3-4:  Указатели, ссылки, массивы, строки, std::vector
-Месяц 5-6:  ООП, классы, наследование, полиморфизм
-Месяц 7-8:  STL контейнеры, алгоритмы, итераторы
-Месяц 9-10: Умные указатели, move-семантика, шаблоны
-Месяц 11-12: Многопоточность, исключения, RAII
-Год 2:      Углублённые шаблоны, метапрограммирование, C++20
-Год 2-3:    Специализация по выбранному направлению
-```
+**Онлайн-инструменты:**
+- [godbolt.org](https://godbolt.org) — Compiler Explorer, видишь ассемблер
+- [cppinsights.io](https://cppinsights.io) — что делает компилятор с шаблонами
+- [quick-bench.com](https://quick-bench.com) — бенчмаркинг в браузере
 
 ---
 
@@ -1035,86 +827,55 @@ clang-format -i -style=Google src/
 ### Книги (в порядке чтения)
 
 | # | Книга | Уровень |
-|---|-------|---------|
-| 1 | **C++ Primer** — Lippman, Lajoie, Moo | Начинающий |
-| 2 | **A Tour of C++** — Bjarne Stroustrup | Начинающий+ |
-| 3 | **Effective Modern C++** — Scott Meyers | Средний |
-| 4 | **C++ Templates: The Complete Guide** — Vandevoorde | Средний-продвинутый |
-| 5 | **C++ Concurrency in Action** — Anthony Williams | Продвинутый |
-| 6 | **The C++ Programming Language** — Stroustrup | Справочник |
+|---|---|---|
+| 1 | C++ Primer — Lippman, Lajoie, Moo | Начинающий |
+| 2 | A Tour of C++ — Bjarne Stroustrup | Начинающий+ |
+| 3 | Effective Modern C++ — Scott Meyers | Средний |
+| 4 | C++ Templates: The Complete Guide — Vandevoorde | Средний-продвинутый |
+| 5 | C++ Concurrency in Action — Anthony Williams | Продвинутый |
+| 6 | The C++ Programming Language — Stroustrup | Справочник |
 
 ### Онлайн-ресурсы
 
 | Ресурс | Описание |
-|--------|----------|
-| **learncpp.com** | Лучший бесплатный курс для начинающих |
-| **cppreference.com** | Главный справочник по стандарту |
-| **godbolt.org** | Compiler Explorer — смотри ассемблер |
-| **cppinsights.io** | Видишь что делает компилятор с шаблонами |
-| **quick-bench.com** | Бенчмаркинг прямо в браузере |
+|---|---|
+| learncpp.com | Лучший бесплатный курс для начинающих |
+| cppreference.com | Главный справочник по стандарту |
+| godbolt.org | Compiler Explorer — смотри ассемблер |
+| cppinsights.io | Видишь что делает компилятор с шаблонами |
+| quick-bench.com | Бенчмаркинг прямо в браузере |
 
 ### YouTube каналы
 
 | Канал | Описание |
-|-------|----------|
-| **The Cherno** | Практический C++ для начинающих |
-| **CppCon** | Конференционные доклады экспертов |
-| **C++ Weekly (Jason Turner)** | Короткие трюки и новинки стандарта |
-| **javidx9 (One Lone Coder)** | Gamedev на C++ |
+|---|---|
+| The Cherno | Практический C++ для начинающих |
+| CppCon | Конференционные доклады экспертов |
+| C++ Weekly (Jason Turner) | Короткие трюки и новинки стандарта |
+| javidx9 (One Lone Coder) | Gamedev на C++ |
 
 ### Платформы для практики
 
 | Платформа | Описание |
-|-----------|----------|
-| **LeetCode** | Алгоритмы и структуры данных |
-| **Codeforces** | Олимпиадное программирование |
-| **HackerRank** | Задачи по C++ специфически |
-| **Exercism** | Задачи с ревью от ментора |
+|---|---|
+| LeetCode | Алгоритмы и структуры данных |
+| Codeforces | Олимпиадное программирование |
+| HackerRank | Задачи по C++ специфически |
+| Exercism | Задачи с ревью от ментора |
 
 ---
 
-## Типичные ошибки новичков
+## Дорожная карта по времени
 
-```cpp
-// ❌ Плохо: забытый virtual деструктор
-class Base { };
-class Derived : public Base { ~Derived() { /* cleanup */ } };
-Base* ptr = new Derived();
-delete ptr;  // UB! деструктор Derived не вызовется
-
-// ✅ Хорошо:
-class Base { public: virtual ~Base() = default; };
-
-// ❌ Плохо: висячий указатель
-int* ptr = new int(42);
-delete ptr;
-*ptr = 10;  // UB! используем удалённую память
-
-// ✅ Хорошо: умные указатели
-auto ptr = std::make_unique<int>(42);
-// автоматически удаляется
-
-// ❌ Плохо: возврат ссылки на локальную переменную
-int& bad() {
-    int x = 42;
-    return x;  // UB! x уничтожен после возврата
-}
-
-// ❌ Плохо: signed/unsigned сравнение
-std::vector<int> v = {1, 2, 3};
-for (int i = 0; i < v.size(); ++i)  // warning! v.size() — unsigned
-// ✅ Хорошо:
-for (size_t i = 0; i < v.size(); ++i)
-// или просто range-based for:
-for (const auto& x : v)
-
-// ❌ Плохо: не инициализированные переменные
-int x;  // мусорное значение!
-std::cout << x;  // UB!
-
-// ✅ Хорошо:
-int x = 0;
-int y{};  // value-initialization, тоже 0
+```
+Месяц  1-2:  Синтаксис, типы, управляющие конструкции, функции
+Месяц  3-4:  Указатели, ссылки, массивы, строки, std::vector
+Месяц  5-6:  ООП, классы, наследование, полиморфизм
+Месяц  7-8:  STL контейнеры, алгоритмы, итераторы
+Месяц  9-10: Умные указатели, move-семантика, шаблоны
+Месяц 11-12: Многопоточность, исключения, RAII
+Год 2:       Углублённые шаблоны, метапрограммирование, C++20
+Год 2-3:     Специализация по выбранному направлению
 ```
 
 ---
@@ -1122,17 +883,18 @@ int y{};  // value-initialization, тоже 0
 ## Глоссарий
 
 | Термин | Объяснение |
-|--------|------------|
-| **UB** | Undefined Behavior — поведение не определено стандартом, опасно |
-| **RAII** | Resource Acquisition Is Initialization — ресурс берётся в конструкторе, освобождается в деструкторе |
-| **lvalue/rvalue** | lvalue — есть имя, rvalue — временный объект |
-| **ODR** | One Definition Rule — каждая сущность должна иметь ровно одно определение |
-| **ABI** | Application Binary Interface — бинарная совместимость между модулями |
-| **TMP** | Template Metaprogramming — программирование на шаблонах |
-| **POD** | Plain Old Data — простые типы без конструкторов/деструкторов |
-| **SFINAE** | Substitution Failure Is Not An Error — ошибка подстановки шаблона не ошибка |
+|---|---|
+| UB | Undefined Behavior — поведение не определено стандартом, опасно |
+| RAII | Resource Acquisition Is Initialization — ресурс берётся в конструкторе, освобождается в деструкторе |
+| lvalue/rvalue | lvalue — есть имя, rvalue — временный объект |
+| ODR | One Definition Rule — каждая сущность должна иметь ровно одно определение |
+| ABI | Application Binary Interface — бинарная совместимость между модулями |
+| TMP | Template Metaprogramming — программирование на шаблонах |
+| SFINAE | Substitution Failure Is Not An Error — ошибка подстановки шаблона не ошибка |
+| CRTP | Curiously Recurring Template Pattern — статический полиморфизм |
+| SoA/AoS | Structure of Arrays / Array of Structures — паттерны layout памяти |
 
 ---
 
-*Этот роадмап создан для репозитория [cpproadmap2026](https://github.com/justxor/cpproadmap2026)*  
+*Этот роадмап создан для репозитория cpproadmap2026*  
 *Стандарты: C++11, C++14, C++17, C++20, C++23*
