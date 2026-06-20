@@ -40,6 +40,7 @@
 - [Лучшие ресурсы для изучения](#лучшие-ресурсы-для-изучения)
 - [Дорожная карта по времени](#дорожная-карта-по-времени)
 - [Глоссарий](#глоссарий)
+- [🧩 Задачи с разбором решений](#-задачи-с-разбором-решений)
 - [📚 Теория C++ — от нуля до профи с примерами](#-теория-c--от-нуля-до-профи-с-примерами)
 
 ---
@@ -1467,6 +1468,275 @@ clang-format -i -style=Google src/
 | SFINAE | Substitution Failure Is Not An Error — ошибка подстановки шаблона не ошибка |
 | CRTP | Curiously Recurring Template Pattern — статический полиморфизм |
 | SoA/AoS | Structure of Arrays / Array of Structures — паттерны layout памяти |
+
+---
+
+---
+
+## 🧩 Задачи с разбором решений
+
+> Лучший способ закрепить теорию — решать задачи. Ниже подборка задач по уровням: от базовых до собеседовательных. Сначала попробуйте решить **сами**, потом разверните разбор. Каждое решение показывает идиоматичный C++ и объясняет, *почему* именно так.
+
+### Уровень 1 — Базовые
+
+<details>
+<summary><b>Задача 1.1.</b> FizzBuzz без дублирования вывода</summary>
+
+Вывести числа 1..100, но кратные 3 заменить на «Fizz», кратные 5 — на «Buzz», кратные 15 — на «FizzBuzz».
+
+```cpp
+#include <iostream>
+#include <string>
+
+int main() {
+    for (int i = 1; i <= 100; ++i) {
+        std::string out;
+        if (i % 3 == 0) out += "Fizz";
+        if (i % 5 == 0) out += "Buzz";
+        std::cout << (out.empty() ? std::to_string(i) : out) << "\n";
+    }
+}
+```
+
+**Разбор:** наивное решение с четырьмя ветками if/else дублирует условие на 15 (= 3 и 5 одновременно). Накапливая строку, мы убираем дублирование: если число делится и на 3, и на 5, обе ветки сработают и получится «FizzBuzz». Тернарный оператор выбирает само число, только когда строка пуста. Классический вопрос на собеседовании — оценивают, как вы избегаете дублирования логики.
+</details>
+
+<details>
+<summary><b>Задача 1.2.</b> Развернуть строку на месте</summary>
+
+```cpp
+#include <string>
+#include <algorithm>
+
+void reverse_in_place(std::string& s) {
+    std::size_t i = 0, j = s.size();
+    while (i + 1 < j) std::swap(s[i++], s[--j]); // два указателя навстречу
+}
+
+// В реальном коде просто:  std::reverse(s.begin(), s.end());
+```
+
+**Разбор:** техника «двух указателей» — i идёт слева, j справа, меняем местами и сходимся к центру. Сложность O(n), доп. память O(1). Важная деталь: `s.size()` возвращает беззнаковый тип, поэтому условие пишем как `i + 1 < j`, а не `i < j - 1` (при j = 0 произошло бы переполнение беззнакового — UB-ловушка из Т.8). В продакшене используйте std::reverse.
+</details>
+
+<details>
+<summary><b>Задача 1.3.</b> Подсчитать частоту символов</summary>
+
+```cpp
+#include <string_view>
+#include <unordered_map>
+
+std::unordered_map<char, int> char_freq(std::string_view s) {
+    std::unordered_map<char, int> freq;
+    for (char c : s) ++freq[c];  // operator[] создаёт элемент со значением 0
+    return freq;                 // NRVO — без копии
+}
+```
+
+**Разбор:** `unordered_map` даёт доступ за O(1) в среднем. Ключевой момент: `++freq[c]` — если ключа ещё нет, `operator[]` вставит его со значением по умолчанию (0 для int), а затем мы инкрементируем. Параметр `string_view` не копирует строку. Возврат map по значению дёшев благодаря move/NRVO.
+</details>
+
+### Уровень 2 — Средние (ООП, STL)
+
+<details>
+<summary><b>Задача 2.1.</b> Удалить дубликаты из вектора, сохранив порядок</summary>
+
+```cpp
+#include <vector>
+#include <unordered_set>
+
+std::vector<int> dedup_keep_order(const std::vector<int>& in) {
+    std::unordered_set<int> seen;
+    std::vector<int> out;
+    out.reserve(in.size());
+    for (int x : in)
+        if (seen.insert(x).second)  // .second == true, если вставка новая
+            out.push_back(x);
+    return out;
+}
+```
+
+**Разбор:** `set::insert` возвращает пару `{итератор, bool}`, где `.second` равен true только если элемент действительно вставлен. Это позволяет одной операцией и проверить наличие, и запомнить элемент. Если бы порядок был не важен, можно было бы отсортировать и применить `std::unique`. `reserve` убирает лишние реаллокации.
+</details>
+
+<details>
+<summary><b>Задача 2.2.</b> Спроектировать класс Stack на векторе с move-семантикой</summary>
+
+```cpp
+#include <vector>
+#include <stdexcept>
+#include <utility>
+
+template<typename T>
+class Stack {
+public:
+    void push(T value) { data_.push_back(std::move(value)); }
+
+    T pop() {
+        if (data_.empty()) throw std::out_of_range("pop from empty stack");
+        T top = std::move(data_.back());  // забираем верхушку move'ом
+        data_.pop_back();
+        return top;
+    }
+
+    bool empty() const noexcept { return data_.empty(); }
+    std::size_t size() const noexcept { return data_.size(); }
+private:
+    std::vector<T> data_;  // правило нуля: вектор сам управляет памятью
+};
+```
+
+**Разбор:** применяем **правило нуля** (Т.3) — храним `std::vector`, поэтому копирование/перемещение/деструктор компилятор генерирует сам. `push` принимает по значению + `std::move`: вызывающий сам решает, копировать или перемещать. В `pop` забираем верхний элемент через `std::move` (Т.4), чтобы не копировать. Запросы помечены `const` и `noexcept` (Т.7).
+</details>
+
+<details>
+<summary><b>Задача 2.3.</b> Найти два числа с заданной суммой (Two Sum)</summary>
+
+```cpp
+#include <vector>
+#include <unordered_map>
+#include <optional>
+
+std::optional<std::pair<int,int>> two_sum(const std::vector<int>& nums, int target) {
+    std::unordered_map<int, int> seen; // значение -> индекс
+    for (int i = 0; i < static_cast<int>(nums.size()); ++i) {
+        int need = target - nums[i];
+        if (auto it = seen.find(need); it != seen.end())
+            return std::pair{it->second, i};
+        seen[nums[i]] = i;
+    }
+    return std::nullopt;  // решения нет
+}
+```
+
+**Разбор:** наивное решение — два вложенных цикла за O(n²). Хеш-таблица сводит задачу к O(n): для каждого элемента ищем «дополнение» `target - nums[i]` среди уже виденных. Возврат `std::optional` честно выражает «решения может не быть» без магических значений вроде {-1,-1}. Обратите внимание на `if` с инициализатором (C++17) — `it` живёт только внутри if.
+</details>
+
+### Уровень 3 — Продвинутые (память, многопоточность, шаблоны)
+
+<details>
+<summary><b>Задача 3.1.</b> Почему этот код падает? (dangling reference)</summary>
+
+```cpp
+#include <vector>
+#include <string>
+
+std::vector<std::string> v = {"a", "b", "c"};
+const std::string& ref = v[0];  // ссылка на первый элемент
+v.push_back("d");               // ⚠️ возможна реаллокация!
+// std::cout << ref;            // ❌ ref может быть висячей — UB
+```
+
+**Разбор:** `push_back` при нехватке ёмкости **реаллоцирует** буфер вектора — все ссылки, указатели и итераторы на элементы инвалидируются (Т.1, Т.8). `ref` начинает указывать на освобождённую память. Исправления: скопировать значение (`std::string copy = v[0];`), заранее `v.reserve(n)`, либо обращаться по индексу после модификаций. Любимый вопрос на собеседованиях про инвалидацию итераторов.
+</details>
+
+<details>
+<summary><b>Задача 3.2.</b> Потокобезопасный счётчик: atomic vs мьютекс</summary>
+
+```cpp
+#include <atomic>
+#include <thread>
+#include <vector>
+
+std::atomic<long> counter{0};
+
+void worker(int iterations) {
+    for (int i = 0; i < iterations; ++i)
+        counter.fetch_add(1, std::memory_order_relaxed); // атомарно
+}
+
+int main() {
+    std::vector<std::jthread> pool;          // C++20: авто-join
+    for (int i = 0; i < 8; ++i) pool.emplace_back(worker, 100000);
+    // jthread автоматически join при выходе из scope
+    // итог: counter == 800000 гарантированно, без гонок
+}
+```
+
+**Разбор:** обычный `++counter` на `long` из нескольких потоков — гонка данных и UB (Т.9). `std::atomic` делает инкремент неделимым. Для простого счётчика atomic быстрее мьютекса (нет блокировок ядра). `memory_order_relaxed` допустим: нам важен лишь итоговый счёт. `std::jthread` (C++20) сам делает join в деструкторе.
+</details>
+
+<details>
+<summary><b>Задача 3.3.</b> Обобщённый print для любого контейнера (концепты)</summary>
+
+```cpp
+#include <iostream>
+#include <ranges>
+#include <vector>
+#include <list>
+
+template<std::ranges::range R>
+void print_range(const R& r) {
+    std::cout << "[ ";
+    for (const auto& x : r) std::cout << x << ' ';
+    std::cout << "]\n";
+}
+
+int main() {
+    print_range(std::vector{1, 2, 3});
+    print_range(std::list{4, 5, 6});  // работает для любого range
+}
+```
+
+**Разбор:** концепт `std::ranges::range` (Т.5) ограничивает шаблон типами, у которых есть `begin()`/`end()`. Если передать не-контейнер, ошибка будет короткой и понятной, а не простынёй из глубины инстанцирования. Это современная замена SFINAE. Функция работает с vector, list, array, span и даже с ranges-вью.
+</details>
+
+### Уровень 4 — Экспертные (производительность, дизайн)
+
+<details>
+<summary><b>Задача 4.1.</b> Почему SoA быстрее AoS? (cache locality)</summary>
+
+```cpp
+// Нужно просуммировать только координату x у миллиона частиц.
+
+// AoS — каждая итерация тянет в кэш ненужные vx, vy, mass...
+struct ParticleAoS { float x, y, z, vx, vy, vz, mass; };
+float sum_aos(const std::vector<ParticleAoS>& p) {
+    float s = 0; for (const auto& e : p) s += e.x; return s;
+}
+
+// SoA — x лежат подряд, кэш-линия заполнена только нужными данными
+struct ParticlesSoA { std::vector<float> x, y, z, vx, vy, vz, mass; };
+float sum_soa(const ParticlesSoA& p) {
+    float s = 0; for (float xi : p.x) s += xi; return s;
+}
+```
+
+**Разбор:** процессор читает память **кэш-линиями** по 64 байта. В AoS соседние байты — это vx, vy, mass той же частицы, которые не нужны: на каждую полезную `float x` (4 байта) грузится ~60 байт мусора. В SoA все `x` лежат непрерывно, кэш-линия используется на 100%, включается префетч и автовекторизация (SIMD). На больших данных разница достигает 5–10×. Основа data-oriented design в геймдеве и HPC.
+</details>
+
+<details>
+<summary><b>Задача 4.2.</b> RAII-таймер для замера времени блока</summary>
+
+```cpp
+#include <chrono>
+#include <iostream>
+#include <string_view>
+
+class ScopedTimer {
+public:
+    explicit ScopedTimer(std::string_view name)
+        : name_(name), start_(std::chrono::steady_clock::now()) {}
+    ~ScopedTimer() {
+        auto end = std::chrono::steady_clock::now();
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start_);
+        std::cout << name_ << ": " << us.count() << " us\n";
+    }
+private:
+    std::string_view name_;
+    std::chrono::steady_clock::time_point start_;
+};
+
+void heavy() {
+    ScopedTimer t{"heavy()"};   // старт замера
+    // ... работа ...
+}                               // деструктор печатает время — даже при исключении
+```
+
+**Разбор:** чистое применение RAII (Т.2): старт фиксируется в конструкторе, итог печатается в деструкторе — автоматически при любом выходе из блока, включая исключения. Используем `steady_clock` (монотонные часы, не «прыгают» при коррекции системного времени), а не `system_clock`. Удобный инструмент для грубого профилирования без внешних библиотек.
+</details>
+
+> 💡 **Где брать ещё задачи:** LeetCode (алгоритмы), Codeforces (олимпиадные), Exercism (с ревью), а также разборы и задачи в канале [С++ Академия](https://t.me/+Cf3VMuCxqv9kYzIy).
 
 ---
 
