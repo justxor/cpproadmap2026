@@ -54,6 +54,7 @@
 - [🗂️ Структуры данных и выбор контейнера](#️-структуры-данных-и-выбор-контейнера)
 - [🚫 Антипаттерны — «как НЕ надо»](#-антипаттерны--как-не-надо)
 - [❓ FAQ — частые вопросы](#-faq--частые-вопросы)
+- [🔬 Продвинутые темы (Expert+)](#-продвинутые-темы-expert)
 - [📚 Теория C++ — от нуля до профи с примерами](#-теория-c--от-нуля-до-профи-с-примерами)
 
 ---
@@ -1253,6 +1254,251 @@ clang-format -i -style=Google src/
 
 ---
 
+---
+
+---
+
+## 🔬 Продвинутые темы (Expert+)
+
+> Темы для тех, кто уже уверенно владеет уровнями 1–4. Это материал для системных программистов, разработчиков библиотек, HPC и низкоуровневой оптимизации. Каждая тема — с минимальным рабочим примером.
+
+### A.1 Lock-free программирование и memory_order
+
+Атомарные операции позволяют синхронизировать потоки без мьютексов. `memory_order` управляет тем, какие гарантии порядка даёт операция — это компромисс между производительностью и строгостью.
+
+```cpp
+#include <atomic>
+#include <thread>
+#include <cassert>
+
+std::atomic<bool> ready{false};
+int data = 0;
+
+void producer() {
+    data = 42;                                    // 1. подготовили данные
+    ready.store(true, std::memory_order_release); // 2. release: всё выше видно
+}
+
+void consumer() {
+    while (!ready.load(std::memory_order_acquire)) // acquire: видим всё до release
+        std::this_thread::yield();
+    assert(data == 42); // гарантировано: release/acquire дают happens-before
+}
+```
+
+
+**Порядки памяти от слабого к строгому:** `relaxed` → `acquire`/`release` → `acq_rel` → `seq_cst` (по умолчанию). `relaxed` для счётчиков, `acquire`/`release` для передачи данных, `seq_cst` когда сомневаетесь. **Lock-free ≠ быстрее мьютекса** — всегда измеряйте.
+
+### A.2 Выравнивание, padding и false sharing
+
+Когда два потока пишут в разные переменные в одной кэш-линии (64 байта), процессоры постоянно синхронизируют линию — это **false sharing**.
+
+```cpp
+#include <atomic>
+#include <new>
+
+// ❌ ПЛОХО: оба счётчика в одной кэш-линии — потоки мешают друг другу
+struct BadCounters {
+    std::atomic<long> a{0};
+    std::atomic<long> b{0};
+};
+
+// ✅ ХОРОШО: разносим по разным кэш-линиям
+struct GoodCounters {
+    alignas(std::hardware_destructive_interference_size) std::atomic<long> a{0};
+    alignas(std::hardware_destructive_interference_size) std::atomic<long> b{0};
+};
+```
+
+
+`alignas` задаёт выравнивание, `std::hardware_destructive_interference_size` (C++17) — размер кэш-линии. Порядок полей от большего к меньшему уменьшает padding.
+
+### A.3 Пользовательские аллокаторы и пулы памяти
+
+Стандартные `new`/`delete` медленны для частых мелких выделений. Пул-аллокатор выделяет большой блок один раз и раздаёт куски за O(1).
+
+```cpp
+#include <memory_resource>
+#include <vector>
+#include <array>
+#include <cstddef>
+
+void pmr_demo() {
+    std::array<std::byte, 8192> buffer;          // буфер на стеке
+    std::pmr::monotonic_buffer_resource pool{buffer.data(), buffer.size()};
+    std::pmr::vector<int> v{&pool};              // память из пула, не из кучи
+    for (int i = 0; i < 1000; ++i) v.push_back(i);
+}   // вся память освобождается разом при разрушении pool
+```
+
+
+`std::pmr` (C++17): `monotonic_buffer_resource` (растёт, освобождает всё сразу), `unsynchronized_pool_resource` (пулы по размерам). Идеально для арен, парсеров, игровых кадров.
+
+### A.4 SIMD и автовекторизация
+
+Современные CPU обрабатывают несколько чисел одной инструкцией (SSE/AVX/NEON). Компилятор векторизует простые циклы сам, если им не мешать.
+
+```cpp
+#include <vector>
+#include <cstddef>
+
+// Векторизуется при -O2 -march=native: нет зависимостей между итерациями
+void axpy(float a, const std::vector<float>& x, std::vector<float>& y) {
+    const std::size_t n = x.size();
+    for (std::size_t i = 0; i < n; ++i)
+        y[i] += a * x[i];
+}
+// Мешают: алиасы, ветвления, вызовы функций, зависимости по данным.
+// Помогают: __restrict, contiguous данные, отсутствие условий в теле.
+```
+
+
+Проверяйте на [godbolt.org](https://godbolt.org): ищите `vaddps`/`vfmadd`. Флаги `-O2 -march=native`. Явный контроль — интринсики (`<immintrin.h>`) или `std::experimental::simd`.
+### A.5 Perfect forwarding и reference collapsing
+
+Шаблон с `T&&` — это **forwarding reference** (не rvalue!). Правила «схлопывания ссылок» позволяют `std::forward` сохранить категорию значения при передаче дальше.
+
+```cpp
+#include <utility>
+#include <vector>
+#include <string>
+
+template<typename T, typename... Args>
+T make(Args&&... args) {
+    return T(std::forward<Args>(args)...); // lvalue->lvalue, rvalue->rvalue
+}
+
+std::vector<std::string> v;
+std::string s = "hello";
+v.emplace_back(s);             // копия (s — lvalue)
+v.emplace_back(std::move(s));  // перемещение (s — rvalue)
+v.emplace_back("inline");      // конструирование на месте
+```
+
+
+Правило: `T&&` в выводимом шаблонном контексте = forwarding reference → `std::forward<T>`. `T&&` для конкретного типа = rvalue ref → `std::move`.
+
+### A.6 Type erasure — полиморфизм без наследования
+
+Type erasure хранит объекты разных типов за единым интерфейсом без общего базового класса (как `std::function` или `std::any`).
+
+```cpp
+#include <memory>
+#include <iostream>
+
+class Drawable {
+    struct Concept {
+        virtual ~Concept() = default;
+        virtual void draw() const = 0;
+    };
+    template<typename T>
+    struct Model : Concept {
+        T obj;
+        explicit Model(T o) : obj(std::move(o)) {}
+        void draw() const override { obj.draw(); }
+    };
+    std::unique_ptr<Concept> self_;
+public:
+    template<typename T>
+    Drawable(T obj) : self_(std::make_unique<Model<T>>(std::move(obj))) {}
+    void draw() const { self_->draw(); }
+};
+
+struct Circle { void draw() const { std::cout << "circle\n"; } };
+struct Square { void draw() const { std::cout << "square\n"; } };
+// Circle и Square НЕ связаны наследованием, но оба кладутся в Drawable
+```
+
+
+Преимущество: типы не обязаны знать про интерфейс заранее, значения копируемы. Цена — аллокация и косвенный вызов.
+
+### A.7 std::expected — обработка ошибок без исключений (C++23)
+
+`std::expected<T, E>` хранит либо результат, либо ошибку — явно, в типе, без накладных расходов исключений.
+
+```cpp
+#include <expected>
+#include <string_view>
+#include <charconv>
+
+enum class ParseError { empty, not_a_number };
+
+std::expected<int, ParseError> parse_int(std::string_view s) {
+    if (s.empty()) return std::unexpected(ParseError::empty);
+    int value{};
+    auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
+    if (ec != std::errc{}) return std::unexpected(ParseError::not_a_number);
+    return value;
+}
+
+void use() {
+    if (auto r = parse_int("42"); r.has_value()) int x = *r; // 42
+    auto doubled = parse_int("21").transform([](int v){ return v * 2; });
+}
+```
+
+
+В отличие от `std::optional`, `expected` несёт *причину* ошибки. Монадический интерфейс (`transform`, `and_then`, `or_else`) строит цепочки без вложенных `if`.
+
+### A.8 Корутины глубже — генераторы и async
+
+Корутины (C++20) — функции, которые могут приостанавливаться и возобновляться. Основа ленивых генераторов и async-кода без callback-ада.
+
+```cpp
+#include <generator>  // C++23
+#include <ranges>
+#include <print>
+
+std::generator<std::uint64_t> primes() {
+    std::vector<std::uint64_t> found;
+    for (std::uint64_t n = 2; ; ++n) {
+        bool is_prime = true;
+        for (auto p : found) {
+            if (p * p > n) break;
+            if (n % p == 0) { is_prime = false; break; }
+        }
+        if (is_prime) { found.push_back(n); co_yield n; } // приостановка тут
+    }
+}
+
+void demo() {
+    for (auto p : primes() | std::views::take(10))
+        std::print("{} ", p);  // 2 3 5 7 11 13 17 19 23 29
+}
+```
+
+
+`co_yield` приостанавливает корутину; `co_await` ждёт асинхронную операцию; `co_return` завершает. Для async-сетей — **Boost.Asio**, **libcoro**, **cppcoro**.
+
+### A.9 Продвинутая сборка: LTO, PGO, sanitizers в CI
+
+```bash
+# LTO (Link-Time Optimization) — оптимизация через границы единиц трансляции
+g++ -O2 -flto -o app *.cpp
+
+# PGO (Profile-Guided Optimization) — оптимизация по реальному профилю
+g++ -O2 -fprofile-generate -o app *.cpp   # 1) сборка с инструментацией
+./app < typical_workload                   # 2) прогон типичной нагрузки
+g++ -O2 -fprofile-use -o app *.cpp         # 3) пересборка по профилю
+
+# Native-инструкции под конкретный CPU (осторожно с переносимостью!)
+g++ -O3 -march=native -funroll-loops -o app *.cpp
+```
+
+
+**В CI обязательно гоняйте сборки с санитайзерами** (`-fsanitize=address,undefined` и отдельно `thread`) на тестах — это ловит UB и гонки до продакшена. LTO даёт инлайнинг между файлами, PGO — лучшее предсказание ветвлений; вместе ускоряют на 5–20%.
+
+### A.10 Что изучать дальше
+
+| Область | Ключевые ресурсы |
+|---|---|
+| Lock-free / конкурентность | "C++ Concurrency in Action" (Williams), доклады Fedor Pikus на CppCon |
+| Низкоуровневая оптимизация | Agner Fog optimization manuals, "What Every Programmer Should Know About Memory" |
+| Дизайн библиотек | "API Design for C++" (Reddy), исходники Boost / {fmt} / Abseil |
+| Компиляторы / LLVM | LLVM Kaleidoscope tutorial, "Engineering a Compiler" |
+| Метапрограммирование | "C++ Templates: The Complete Guide", доклады Jason Turner |
+
+> 💡 Лучший способ роста — читать исходники качественных библиотек ({fmt}, Abseil, Boost, EnTT) и разбирать доклады CppCon. Углубляйтесь по мере реальной необходимости.
 ---
 
 ## 🚫 Антипаттерны — «как НЕ надо»
